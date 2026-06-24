@@ -11,7 +11,7 @@ void die(const char *s) {
   exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     
     Display *disp;
     Window root;
