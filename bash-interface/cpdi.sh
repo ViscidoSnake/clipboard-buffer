@@ -70,7 +70,7 @@ transform_ring_position_in_index(){
 
 rposition=1
 remove=false
-dcommand="default"
+dcommand="nothing"
 
 while [[ $# -gt 0 ]]
 do
@@ -78,31 +78,34 @@ do
         -i)	
         	if [ $# -lt 2 ]
         	then
-				echo "-i request an argument between 0-10"
-        		exit 0
+				echo "-i request an argument between 0-10, default used (1)"
+				shift 1
+        	elif [ $2 -gt 10 ] || [ $2 -lt 0 ]
+        	then
+				echo "-i request an argument between 0-10, default used (1)"
+				shift 2
+			else
+				rposition=$2
+				shift 2
         	fi
-			if [ $2 -ge 0 ] && [ $2 -le 10 ] #ge, ricorda è maggiore uguale! 
-            then
-            	rposition=$2
-			fi
-            shift 2
             ;;
         -r)
             remove=true
-            shift
+            shift 1
             ;;
-        -c)	
+        -dc)	
         	if [ $# -lt 2 ]
         	then
-				echo "-c request an argument: start|stop|status|restart"
-        		exit 0
-        	fi
-			if [ "$2" = "start" ] || [ "$2" = "stop" ] || [ "$2" = "status" ] || [ "$2" = "restart" ] 
+				echo "-c request an argument: start|stop|status|restart, default used (nothing)"
+        		shift 1
+        	elif [ "$2" != "start" ] && [ "$2" != "stop" ] && [ "$2" != "status" ] && [ "$2" != "restart" ] 
             then
-            	dcommand=$2
+				echo "-c request an argument: start|stop|status|restart, default used (nothing)"
+        		shift 2
+			else
+				dcommand=$2
+				shift 2
 			fi
-			# break
-			shift 2
             ;;
         *)
             echo "Argomento sconosciuto: $1"
@@ -123,10 +126,9 @@ done
 
 
 #### GESTIONE flag -c quindi comandi per interagire con il demone, (in realtà con systemctl che poi interviene su esso) ####
-if [ "$dcommand" != "default" ]
+if [ "$2" = "start" ] || [ "$2" = "stop" ] || [ "$2" = "status" ] || [ "$2" = "restart" ] 
 then
-	`systemctl --user $dcommand cpd`
-	
+	echo "`systemctl --user "$dcommand" cpd`"
 	exit 0
 fi
 
