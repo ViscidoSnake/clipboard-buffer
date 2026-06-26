@@ -32,8 +32,8 @@ int main() {
 
 	static int loop = 1;
 	int selections = (1 << 0); //clipboard
-	char* bufferfileA = "/dev/shm/cpdA.b";
-	char* bufferfileB = "/dev/shm/cpdB.b";
+	char* bufferfileA = "/run/user/1000/clipboard-buffer/cpdA.b";
+	char* bufferfileB = "/run/user/1000/clipboard-buffer/cpdB.b";
 	int count = 1;
 
 	
@@ -51,12 +51,12 @@ int main() {
 	// creo subito i due file buffer, non è fondamentale per il funzionamento dell'algoritmo ma serve maggiormente
 	// per interfaccia bash, potrei effettivamente gestire questa cosa da quella parta ma servirebbero controlli e inoltre
 	// verrebbero eseguiti comandi, quindi forse è più ottimizzato qui
-	fb = fopen(bufferfileA, "w");
-	if (fb == NULL) die("error to open file buffer A", strerror(errno));
-	if (fclose(fb)) die("error to close file buffer A", strerror(errno));
-	fb = fopen(bufferfileB, "w");
-	if (fb == NULL) die("error to open file buffer B", strerror(errno));
-	if (fclose(fb)) die("error to close file buffer B", strerror(errno));
+	// fb = fopen(bufferfileA, "w");
+	// if (fb == NULL) die("error to open file buffer A", strerror(errno));
+	// if (fclose(fb)) die("error to close file buffer A", strerror(errno));
+	// fb = fopen(bufferfileB, "w");
+	// if (fb == NULL) die("error to open file buffer B", strerror(errno));
+	// if (fclose(fb)) die("error to close file buffer B", strerror(errno));
 
 	fb = NULL;
 	

@@ -4,9 +4,10 @@ After=graphical-session.target
 
 [Service]
 Type=simple
+ExecStartPre=/usr/bin/touch %t/clipboard-buffer/cpdA.txt %t/clipboard-buffer/cpdB.txt
 ExecStart=/usr/local/bin/cpd
-Restart=on-failure
-RestartSec=3
+RuntimeDirectory=clipboard-buffer
+TimeoutStopSec=5
 
 [Install]
 WantedBy=graphical-session.target
