@@ -3,10 +3,10 @@
 # variabili globali, files sarebbe un array che contiene il percorso dei due file usati come buffer, findex viene usata sempre come indice
 # dell'array files, rindex sarebbe l'indice che identifica una certa stringa in uno dei file buffer. tmpfile contiene il percorso di un file
 # temporaneo che serve per alcune operazioni rapide come la rimozione di stringhe dal buffer
-files=("/dev/shm/cpdA.b" "/dev/shm/cpdB.b")
+files=("/run/user/1000/clipboard-buffer/cpdA.b" "/run/user/1000/clipboard-buffer/cpdB.b")
 findex=0
 rindex=1
-tmpfile="/dev/shm/tmp.b"
+tmpfile="/run/user/1000/clipboard-buffer/tmp.b"
 
 
 # argomento: $rindex. La funzione converte le posizioni in indici che servono poi per ottenere l'effettiva stringa nei file
@@ -126,9 +126,9 @@ done
 
 
 #### GESTIONE flag -c quindi comandi per interagire con il demone, (in realtà con systemctl che poi interviene su esso) ####
-if [ "$2" = "start" ] || [ "$2" = "stop" ] || [ "$2" = "status" ] || [ "$2" = "restart" ] 
+if [ "$dcommand" = "start" ] || [ "$dcommand" = "stop" ] || [ "$dcommand" = "status" ] || [ "$dcommand" = "restart" ] 
 then
-	echo "`systemctl --user "$dcommand" cpd`"
+	`systemctl --user "$dcommand" cpd`
 	exit 0
 fi
 
@@ -149,6 +149,15 @@ fi
 
 #### GESTIONE flag -i e -r quindi praticamente stampa e rimozione delle stringhe ####
 
+# da questo punto in poi si usano comandi che vogliono accedere al contenuto dei file buffer per questo motivo serve allora un
+# un controllo sul fatto che questi esistano oppure no, farlo ora evita di dover gestire poi errori strani che possono verificarsi
+# successivamente e rimanere occulti. NOTA: ricorda che il fatto che i file non esistano è un forte segnale che il demone non sta
+# venendo eseguito perchè il .service, al momento dell'avvio crea sempre questi file.
+if [ ! -f "${files[0]}" ] || [ ! -f "${files[1]}" ]
+then
+    echo "Buffer files aren't found, whatch if daemon is running!"
+	exit 0
+fi
 
 # if che gestisce i casi in cui -i ha argomento 0
 if [ $rposition -eq 0 ] && [ $remove == false ] # caso 0, stampa le ultime 10 stringhe in memoria però solo se in AND con remove negato

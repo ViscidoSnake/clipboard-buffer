@@ -4,7 +4,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStartPre=/usr/bin/touch %t/clipboard-buffer/cpdA.txt %t/clipboard-buffer/cpdB.txt
+ExecStartPre=/usr/bin/touch %t/clipboard-buffer/cpdA.b %t/clipboard-buffer/cpdB.b
 ExecStart=/usr/local/bin/cpd
 RuntimeDirectory=clipboard-buffer
 TimeoutStopSec=5
