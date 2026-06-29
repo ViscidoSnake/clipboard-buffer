@@ -70,7 +70,7 @@ transform_ring_position_in_index(){
 
 rposition=1
 remove=false
-dcommand="nothing"
+load=false
 
 while [[ $# -gt 0 ]]
 do
@@ -93,19 +93,9 @@ do
             remove=true
             shift 1
             ;;
-        -dc)	
-        	if [ $# -lt 2 ]
-        	then
-				echo "-c request an argument: start|stop|status|restart, default used (nothing)"
-        		shift 1
-        	elif [ "$2" != "start" ] && [ "$2" != "stop" ] && [ "$2" != "status" ] && [ "$2" != "restart" ] 
-            then
-				echo "-c request an argument: start|stop|status|restart, default used (nothing)"
-        		shift 2
-			else
-				dcommand=$2
-				shift 2
-			fi
+        -l)
+            load=true
+            shift 1
             ;;
         *)
             echo "Argomento sconosciuto: $1"
@@ -123,125 +113,128 @@ done
 ##################################################################################################################
 
 
-
-
-#### GESTIONE flag -c quindi comandi per interagire con il demone, (in realtà con systemctl che poi interviene su esso) ####
-if [ "$dcommand" = "start" ] || [ "$dcommand" = "stop" ] || [ "$dcommand" = "status" ] || [ "$dcommand" = "restart" ] 
-then
-	`systemctl --user "$dcommand" cpd`
-	exit 0
-fi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### GESTIONE flag -i e -r quindi praticamente stampa e rimozione delle stringhe ####
-
 # da questo punto in poi si usano comandi che vogliono accedere al contenuto dei file buffer per questo motivo serve allora un
 # un controllo sul fatto che questi esistano oppure no, farlo ora evita di dover gestire poi errori strani che possono verificarsi
 # successivamente e rimanere occulti. NOTA: ricorda che il fatto che i file non esistano è un forte segnale che il demone non sta
 # venendo eseguito perchè il .service, al momento dell'avvio crea sempre questi file.
-if [ ! -f "${files[0]}" ] || [ ! -f "${files[1]}" ]
-then
-    echo "Buffer files aren't found, whatch if daemon is running!"
-	exit 0
+# Verifica che i file esistano (rimuovi il commento se necessario)
+if [ ! -f "${files[0]}" ] || [ ! -f "${files[1]}" ]; then
+    echo "Buffer files aren't found, watch if daemon is running!"
+    exit 2
 fi
 
-# if che gestisce i casi in cui -i ha argomento 0
-if [ $rposition -eq 0 ] && [ $remove == false ] # caso 0, stampa le ultime 10 stringhe in memoria però solo se in AND con remove negato
-then									
-	transform_ring_position_in_index 1
-
-	# if che verifica se effettivamente ci siano elemnti da stampare, in caso contrario scrive una stringa che avverte del fatto che non 
-	# siano presenti stringhe
-	if [ $rindex -eq -1 ]
-	then
-		echo "actualy, the buffer is empty"
-		exit 0
-	fi 
-
-	out=`awk -v RS='\0' '
-	{
-	    rec[++n] = $0
-	}
-
-	END {
-	    count = 0
-
-	    for (i = n; i >= 1 && count < 10; i--) {
-	        printf "\x1B[1;31;49m%d.\x1B[0m %s\n", ++count, rec[i]
-	    }
-	}
-	' "${files[$((1-findex))]}" "${files[$findex]}"`
-	echo "$out"
-	exit 0
-elif [ $rposition -eq 0 ] && [ $remove == true ]
-then
-	# potrebbe aver senso fare il controllo di prima cioè se non ci sono stringhe da stampare meglio uscire subito e scrivere un avviso che
-	# informa del fatto che non sono state "rimosse" stringhe perche effettivamente non ce ne sono tuttavia il codice sotto non da problemi
-	# anche se eseguito in questo modo quindi per ora lascio così
-	`awk -v RS='\0' -v ORS='\0' '
-	 	{
-		    print "\x1B[1;31;49mString removed!\x1B[0m"
-		    next
+# Funzione ausiliaria per gestire la stampa/caricamento dell'output
+# Evita la duplicazione tra echo e xclip
+dispatch_output() {
+    local content="$1"
+    if [ "$load" = true ]; then
+        # Usa -rmlastnl per evitare che xclip aggiunga una newline extra se non voluta
+        echo -n "$content" | xclip -sel clip
+		
+		sleep 0.01
+		
+        transform_ring_position_in_index 1
+		awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
+		NR == idx {
+			print "String removed!"
+			next
 		}
-		{
-		    print
-		}
-		' "${files[$findex]}" > "$tmpfile" | mv "$tmpfile" "${files[$findex]}"`
-		`awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
-	 	{
-		    print "\x1B[1;31;49mString removed!\x1B[0m"
-		    next
-		}
-		{
-		    print
-		}
-		' "${files[$((1-findex))]}" > "$tmpfile" | mv "$tmpfile" "${files[$((1-findex))]}"`
-	exit 0
+		{ print }
+		' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
+    else
+		if [ $remove = false ]
+        then
+        	echo "$content"
+        fi
+    fi
+}
+
+
+
+
+# --- CASO 1: Posizione 0 (Mostra o svuota tutto) ---
+if [ "$rposition" -eq 0 ]; then
+    transform_ring_position_in_index 1
+
+    if [ "$rindex" -eq -1 ]; then
+        echo "actually, the buffer is empty"
+        exit 0
+    fi 
+
+    if [ "$remove" = false ]; then
+        # Mostra le ultime 10 stringhe
+        # Passiamo la variabile 'load' dentro ad awk tramite -v
+        out=$(awk -v RS='\0' -v is_load="$load" '
+            { rec[++n] = $0 }
+            END {
+                count = 0
+                for (i = n; i >= 1 && count < 10; i--) {
+                    if (is_load == "true") {
+                        # Output pulito per xclip: solo il testo grezzo
+                        printf "%s\n", rec[i]
+                        ++count
+                    } else {
+                        # Output formattato per il terminale: numeri rossi
+                        printf "\x1B[1;31;49m%d.\x1B[0m \t%s\n", ++count, rec[i]
+                    }
+                }
+            }
+        ' "${files[$((1-findex))]}" "${files[$findex]}")
+        
+        dispatch_output "$out"
+        exit 0
+    else
+        # Rimuove tutto il contenuto da ENTRAMBI i file (svuota il buffer)
+        awk -v RS='\0' -v ORS='\0' '{ print "String removed!" }' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
+        awk -v RS='\0' -v ORS='\0' '{ print "String removed!" }' "${files[$((1-findex))]}" > "$tmpfile" && mv "$tmpfile" "${files[$((1-findex))]}"
+        
+        echo -e "\x1B[1;31;49mAll strings marked as removed!\x1B[0m"
+        exit 0
+    fi
 fi
 
 
-# a questo punto del codice rposition è comporeso tra 1 e 10, ricavo rindex usando la funzione apposita
+
+
+# --- CASO 2: Posizione specifica (1-10) ---
 transform_ring_position_in_index "$rposition"
 
-# il controllo che segue verifica il valore di rindex, se negativo significa che la posizione richiesta ancora non esiste nel buffer
-# cioè deve ancora essere scritta e pertanto mi fermo, non ha senso proseguire cercando di operare su una stringa che non esiste 
-if [ $rindex -lt 0 ]
-then
-	echo "actualy, the position $rposition isn't written"
-	exit 0
+if [ "$rindex" -lt 0 ]; then
+    echo "actually, the position $rposition isn't written"
+    exit 0
 fi
 
-if [ $remove = false ]
-then
-	# gestisci stampa su terminale, 
- 	out=`awk -v RS='\0' -v idx="$rindex" 'NR==idx {print; exit}' "${files[$findex]}"`
- 	echo "$out"
+# Estraiamo la stringa target (serve sia per la stampa semplice, sia se facciamo remove+load)
+target_string=$(awk -v RS='\0' -v idx="$rindex" -v is_load="$load" -v n="$rposition" '
+    NR == idx {
+        if (is_load == "true") {
+            print $0  # Stampa pulita per xclip
+        } else {
+            # Stampa formattata con numero rosso per il terminale
+            printf "\x1B[1;31;49m%d.\x1B[0m \t%s\n", n, $0
+        }
+        exit
+    }
+' "${files[$findex]}")
+
+if [ "$remove" = false ]; then
+    # Solo lettura/load
+    dispatch_output "$target_string"
+    exit 0
 else
-	`awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
-	NR == idx {
-		print "\x1B[1;31;49mString removed!\x1B[0m"
-		next
-	}
-	{
-		print
-	}
-	' "${files[$findex]}" > "$tmpfile" | mv "$tmpfile" "${files[$findex]}"`
+    # Rimozione della stringa specifica
+    awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
+        NR == idx {
+            print "String removed!"
+            next
+        }
+        { print }
+    ' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
+    
+    # Se l'utente ha chiesto SIA -r SIA -l, carichiamo comunque la stringa rimossa in xclip
+    dispatch_output "$target_string"
+    exit 0
 fi
- 	
  
  
  
