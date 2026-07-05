@@ -9,9 +9,9 @@ files=("/run/user/1000/clipboard-buffer/cpdA.b" "/run/user/1000/clipboard-buffer
 findex=0
 rindex=1
 tmpfile="/run/user/1000/clipboard-buffer/tmp.b"
-
-logmsg=""
-
+# logmsg è una variabile che contiene tutti i vari eventi che possono verificarsi durante l'esecuzione del codice 
+logmsg="execution log:"
+# le varibili sotto sono quelle impostabili attraverso i flag dati al momento del lancio
 rposition=1
 remove=false
 load=false
@@ -72,7 +72,8 @@ transform_ring_position_in_index(){
 	fi
 }
 
-
+# "collega" il valore dell'exitcode con una stringa che spiega meglio cosa è accaduto durante l'esecuzione, inoltre osserva il valore della 
+# variabile verbose per decidere se stampare logmsg oppure no (modalità silenziosa)
 exit_log(){
 	local exitmsg=""
 	case "$1" in
@@ -96,7 +97,6 @@ exit_log(){
 		;;
 	esac
 	
-	logmsg="${logmsg}\n${exitmsg}"
 	
 	if [ $verbose = true ]
 	then	
@@ -106,15 +106,16 @@ exit_log(){
 
 
 # Funzione ausiliaria per gestire la stampa/caricamento dell'output
-# Evita la duplicazione tra echo e xclip
-dispatch_output() {
+redirect_output() {
     local content="$1"
     if [ "$load" = true ]; then
-        # Usa -rmlastnl per evitare che xclip aggiunga una newline extra se non voluta
+		
         echo -n "$content" | xclip -sel clip
 		
 		sleep 0.01
-		
+
+		# ricorda, il load per ha il problema che triggera il demone e quindi inserisce in testa al buffer ciò che è stato selezionato pertanto
+		# il comportamento da usare è: carico nella clipboard (fatto sopra) poi rimuovo il record	
         transform_ring_position_in_index 1
 		awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
 		NR == idx {
@@ -125,7 +126,9 @@ dispatch_output() {
 		' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
 
 		logmsg="${logmsg}\nSpecified strings have been loaded in clipboard"
-    else
+    elif [ "$load" = false ] && [ "$remove" = false ] # questa codizione evita che vnga stampato testo quando remove è true 
+    then
+    	# stampa diretta dell'output
     	echo "$content"
     fi
 }
@@ -183,17 +186,15 @@ fi
 
 
 # --- CASO 1: Posizione 0 (Mostra o svuota tutto) ---
-if [ "$rposition" -eq 0 ]; then
+if [ "$rposition" -eq 0 ]
+then
     transform_ring_position_in_index 1
 
     if [ "$rindex" -eq -1 ]; then
         exit 4
-    fi 
-
-    if [ "$remove" = false ]; then
-        # Mostra le ultime 10 stringhe
-        # Passiamo la variabile 'load' dentro ad awk tramite -v
-        out=$(awk -v RS='\0' -v is_load="$load" '
+    fi
+    
+    out=$(awk -v RS='\0' -v is_load="$load" '
             { rec[++n] = $0 }
             END {
                 count = 0
@@ -210,17 +211,19 @@ if [ "$rposition" -eq 0 ]; then
             }
         ' "${files[$((1-findex))]}" "${files[$findex]}")
     	
-    	logmsg="${logmsg}\nAll strings as captured!"
-        dispatch_output "$out"
-        exit 0
-    else
+    logmsg="${logmsg}\nAll strings as captured!"
+    
+    if [ "$remove" = true ]
+    then
         # Rimuove tutto il contenuto da ENTRAMBI i file (svuota il buffer)
         awk -v RS='\0' -v ORS='\0' '{ print "String removed!" }' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
         awk -v RS='\0' -v ORS='\0' '{ print "String removed!" }' "${files[$((1-findex))]}" > "$tmpfile" && mv "$tmpfile" "${files[$((1-findex))]}"
         
         logmsg="${logmsg}\nAll strings as removed!"
-        exit 0
     fi
+    
+    redirect_output "$out"
+    exit 0
 fi
 
 
@@ -233,7 +236,7 @@ if [ "$rindex" -lt 0 ]; then
 fi
 
 # Estraiamo la stringa target (serve sia per la stampa semplice, sia se facciamo remove+load)
-target_string=$(awk -v RS='\0' -v idx="$rindex" -v is_load="$load" -v n="$rposition" '
+out=$(awk -v RS='\0' -v idx="$rindex" -v is_load="$load" -v n="$rposition" '
     NR == idx {
         if (is_load == "true") {
             print $0  # Stampa pulita per xclip
@@ -260,27 +263,9 @@ then
     logmsg="${logmsg}\nSpecified string removed"
 fi
 
-dispatch_output "$target_string"
+redirect_output "$out"
 exit 0
 
-
-# if [ "$remove" = false ]; then
-    # Solo lettura/load
-    # dispatch_output "$target_string"
-    # exit 0
-# else
-    # Rimozione della stringa specifica
-    # awk -v RS='\0' -v ORS='\0' -v idx="$rindex" '
-        # NR == idx {
-            # print "String removed!"
-            # next
-        # }
-        # { print }
-    # ' "${files[$findex]}" > "$tmpfile" && mv "$tmpfile" "${files[$findex]}"
-    # 
-    # Se l'utente ha chiesto SIA -r SIA -l, carichiamo comunque la stringa rimossa in xclip
-    # dispatch_output "$target_string"
-    # exit 0
-# fi 
+ 
  
  
