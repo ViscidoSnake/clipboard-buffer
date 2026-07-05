@@ -97,6 +97,7 @@ exit_log(){
 		;;
 	esac
 	
+	logmsg="${logmsg}\n${exitmsg}"
 	
 	if [ $verbose = true ]
 	then	
