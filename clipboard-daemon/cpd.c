@@ -47,16 +47,6 @@ int main() {
 	XFixesSelectSelectionInput(disp, root, clip, XFixesSetSelectionOwnerNotifyMask);
 	
 	(void)setvbuf(stdout, NULL, _IONBF, 0);
-	
-	// creo subito i due file buffer, non è fondamentale per il funzionamento dell'algoritmo ma serve maggiormente
-	// per interfaccia bash, potrei effettivamente gestire questa cosa da quella parta ma servirebbero controlli e inoltre
-	// verrebbero eseguiti comandi, quindi forse è più ottimizzato qui
-	// fb = fopen(bufferfileA, "w");
-	// if (fb == NULL) die("error to open file buffer A", strerror(errno));
-	// if (fclose(fb)) die("error to close file buffer A", strerror(errno));
-	// fb = fopen(bufferfileB, "w");
-	// if (fb == NULL) die("error to open file buffer B", strerror(errno));
-	// if (fclose(fb)) die("error to close file buffer B", strerror(errno));
 
 	fb = NULL;
 	
@@ -84,7 +74,7 @@ int main() {
 			if (fclose(fb)) die("error to close file buffer B", strerror(errno));
 			fb = fopen(bufferfileA, "ab+");
 			if (fb == NULL) die("error to open file buffer A", strerror(errno));
-			if(!fprintf(fb, "%s%c", buffer, '\0')) die("error to write file buffer A", strerror(errno));
+			if(fprintf(fb, "%s%c", buffer, '\0')<0) die("error to write file buffer A", strerror(errno));
 			count++;
 		} else if (count == 20){
 			fb = fopen(bufferfileA, "w");
@@ -92,17 +82,17 @@ int main() {
 			if (fclose(fb)) die("error to close file buffer A", strerror(errno));
 			fb = fopen(bufferfileB, "ab+");
 			if (fb == NULL) die("error to open file buffer B", strerror(errno));
-			if(!fprintf(fb, "%s%c", buffer, '\0')) die("error to write file buffer B", strerror(errno));
+			if(fprintf(fb, "%s%c", buffer, '\0')<0) die("error to write file buffer B", strerror(errno));
 			count = 1;
 		} else if (count < 10){
 			fb = fopen(bufferfileA, "ab+");
 			if (fb == NULL) die("error to open file buffer A", strerror(errno));
-			if(!fprintf(fb, "%s%c", buffer, '\0')) die("error to write file buffer A", strerror(errno));
+			if(fprintf(fb, "%s%c", buffer, '\0')<0) die("error to write file buffer A", strerror(errno));
 			count++;
 		} else if (count > 10){
 			fb = fopen(bufferfileB, "ab+");
 			if (fb == NULL) die("error to open file buffer B", strerror(errno));
-			if(!fprintf(fb, "%s%c", buffer, '\0')) die("error to write file buffer B", strerror(errno));
+			if(fprintf(fb, "%s%c", buffer, '\0')<0) die("error to write file buffer B", strerror(errno));
 			count++;
 		}
 		if (fclose(fb)) die("error to close file buffer", strerror(errno));
